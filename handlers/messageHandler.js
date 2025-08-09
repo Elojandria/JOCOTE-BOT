@@ -1,14 +1,22 @@
-export async function handleMessage(sock, message) {
-  // Ignorar mensajes sin contenido
-  if (!message.message) return;
+// handlers/messageHandler.js
+import { askChatGPT } from '../chatgpt.js';
 
-  // Ignorar mensajes enviados por el bot mismo
-  if (message.key.fromMe) return;
+export async function handleMessage(sock, msg) {
+    try {
+        // Ignorar mensajes enviados por el bot para evitar bucles
+        if (msg.key.fromMe) return;
 
-  // Procesa el mensaje normalmente (ejemplo: responde con un eco)
-  const text = message.message.conversation || message.message.extendedTextMessage?.text;
+        const from = msg.key.remoteJid;
+        const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
 
-  if (text) {
-    await sock.sendMessage(message.key.remoteJid, { text: `Recibí: ${text}` });
-  }
+        if (!text) return;
+
+        console.log(`Mensaje de ${from}: ${text}`);
+
+        const reply = await askChatGPT(text);
+
+        await sock.sendMessage(from, { text: reply });
+    } catch (err) {
+        console.error("Error manejando mensaje:", err);
+    }
 }
