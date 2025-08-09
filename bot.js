@@ -1,24 +1,24 @@
 import baileys from '@whiskeysockets/baileys';
+import qrcode from 'qrcode-terminal';  // IMPORTAR ARRIBA
+import { handleMessage } from './handlers/messageHandler.js';
 
 const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion } = baileys;
 
-import { handleMessage } from './handlers/messageHandler.js';
-
 async function startBot() {
-    const { state, saveCreds } = await useMultiFileAuthState('./session');
-    const { version } = await fetchLatestBaileysVersion();
+  const { state, saveCreds } = await useMultiFileAuthState('./session');
+  const { version } = await fetchLatestBaileysVersion();
 
-    const sock = makeWASocket({
-        version,
-        auth: state,
-    });
-    
- sock.ev.on('creds.update', saveCreds);
+  const sock = makeWASocket({
+    version,
+    auth: state
+  });
+
+  sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', (update) => {
     const { connection, qr } = update;
     if (qr) {
-      qrcode.generate(qr, { small: true });
+      qrcode.generate(qr, { small: true });  // qrcode debe estar definido
       console.log('Escanea este QR con WhatsApp:');
     }
     if (connection === 'open') {
