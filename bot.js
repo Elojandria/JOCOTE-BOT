@@ -1,5 +1,4 @@
 import makeWASocket from '@whiskeysockets/baileys';
-import { useMultiFileAuthState, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
 import { handleMessage } from './handlers/messageHandler.js';
 
 async function startBot() {
