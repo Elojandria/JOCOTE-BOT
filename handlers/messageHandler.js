@@ -57,10 +57,8 @@ export async function handleMessage(sock, msg) {
       '';
     if (!text.trim()) return;
 
-    // Registrar actividad
     registrarActividad(sender);
 
-    // Registrar nuevo usuario con rol usuario
     if (!(sender in usuarios)) {
       usuarios[sender] = { nombre: msg.pushName || 'Usuario', rol: 'usuario' };
       guardarArchivo(USUARIOS_FILE, usuarios);
@@ -68,7 +66,9 @@ export async function handleMessage(sock, msg) {
 
     const lowerText = text.trim().toLowerCase();
 
-    // 7) Mostrar lista de comandos: /comandos
+    // Comandos y funcionalidades
+
+    // 1) Mostrar lista de comandos: /comandos
     if (lowerText === '/comandos') {
       const comandos = `
 📂 Gestión de usuarios y roles
@@ -91,16 +91,13 @@ export async function handleMessage(sock, msg) {
 
 🎮 Juegos
 /juego adivina - Juego de adivinanza
-
-📜 Índice
-/comandos - Mostrar esta lista
       `;
       await sock.sendMessage(from, { text: comandos.trim() }, { quoted: msg });
       return;
     }
 
-    // Cambiar nombre
-    if (text.startsWith('/nombre ')) {
+    // 2) Cambiar nombre: /nombre <nuevoNombre>
+    if (lowerText.startsWith('/nombre ')) {
       const nuevoNombre = text.slice(8).trim();
       usuarios[sender].nombre = nuevoNombre;
       guardarArchivo(USUARIOS_FILE, usuarios);
@@ -108,8 +105,8 @@ export async function handleMessage(sock, msg) {
       return;
     }
 
-    // Asignar rol (solo superadmin)
-    if (text.startsWith('/rol ')) {
+    // 3) Asignar rol (solo superadmin): /rol <jid> <rol>
+    if (lowerText.startsWith('/rol ')) {
       if (usuarios[sender]?.rol !== 'superadmin') {
         await sock.sendMessage(from, { text: '🚫 Solo superadmin puede asignar roles.' }, { quoted: msg });
         return;
@@ -127,8 +124,8 @@ export async function handleMessage(sock, msg) {
       return;
     }
 
-    // Resetear nombres (admin y superadmin)
-    if (text === '/resetnombres') {
+    // 4) Resetear nombres (admin y superadmin): /resetnombres
+    if (lowerText === '/resetnombres') {
       if (!['admin', 'superadmin'].includes(usuarios[sender]?.rol)) {
         await sock.sendMessage(from, { text: '🚫 Solo admin o superadmin pueden resetear nombres.' }, { quoted: msg });
         return;
@@ -141,8 +138,8 @@ export async function handleMessage(sock, msg) {
       return;
     }
 
-    // Activar/desactivar bot en grupos (admin y superadmin)
-    if (text === '/activarbot' || text === '/desactivarbot') {
+    // 5) Activar/desactivar bot en grupos (admin y superadmin): /activarbot y /desactivarbot
+    if (lowerText === '/activarbot' || lowerText === '/desactivarbot') {
       if (!isGroup) {
         await sock.sendMessage(from, { text: '🚫 Este comando solo funciona en grupos.' }, { quoted: msg });
         return;
@@ -151,46 +148,42 @@ export async function handleMessage(sock, msg) {
         await sock.sendMessage(from, { text: '🚫 Solo admin o superadmin pueden activar/desactivar el bot en grupos.' }, { quoted: msg });
         return;
       }
-      groupChatStatus[from] = text === '/activarbot';
+      groupChatStatus[from] = lowerText === '/activarbot';
       guardarArchivo(GROUP_STATUS_FILE, groupChatStatus);
       await sock.sendMessage(from, { text: `✅ Bot ${groupChatStatus[from] ? 'activado' : 'desactivado'} en este grupo.` }, { quoted: msg });
       return;
     }
 
-    // Privados: manejar activación/desactivación individual
+    // 6) Privados: activar/desactivar bot en chat individual
     if (!isGroup) {
       if (!(from in privateChatStatus)) {
         privateChatStatus[from] = true;
         guardarArchivo(STATUS_FILE, privateChatStatus);
       }
-
       if (lowerText === '/desactivar') {
         privateChatStatus[from] = false;
         guardarArchivo(STATUS_FILE, privateChatStatus);
         await sock.sendMessage(from, { text: '✅ Bot desactivado para este chat.' }, { quoted: msg });
         return;
       }
-
       if (lowerText === '/activar') {
         privateChatStatus[from] = true;
         guardarArchivo(STATUS_FILE, privateChatStatus);
         await sock.sendMessage(from, { text: '✅ Bot activado para este chat.' }, { quoted: msg });
         return;
       }
-
       if (!privateChatStatus[from]) return;
     }
 
-    // Responder solo si bot activado en grupo
+    // 7) Si es grupo y bot está desactivado, no responder
     if (isGroup) {
       if (groupChatStatus[from] === false) return;
-
-      // Solo si contiene "JOCOTE-BOT"
+      // Responder solo si contiene "JOCOTE-BOT"
       const hasExactWord = /\bJOCOTE-BOT\b/i.test(text);
       if (!hasExactWord) return;
     }
 
-    // 1) Crear reminder: /crear reminder 2025-08-15 14:00 Mensaje
+    // 8) Crear reminder: /crear reminder <YYYY-MM-DD> <HH:MM> <mensaje>
     if (lowerText.startsWith('/crear reminder ')) {
       const partes = text.slice(16).trim().split(' ');
       if (partes.length < 3) {
@@ -205,31 +198,33 @@ export async function handleMessage(sock, msg) {
         await sock.sendMessage(from, { text: '❗ Fecha u hora inválida. Usa formato YYYY-MM-DD HH:MM' }, { quoted: msg });
         return;
       }
+      if (!reminders[from]) reminders[from] = {};
       const id = Date.now().toString();
-      reminders[id] = { fechaHora: fechaHoraStr, mensaje, creador: sender };
+      reminders[from][id] = { fechaHora: fechaHoraStr, mensaje, creador: sender };
       guardarArchivo(REMINDERS_FILE, reminders);
-      await sock.sendMessage(from, { text: `✅ Recordatorio creado con ID ${id}` }, { quoted: msg });
+      await sock.sendMessage(from, { text: `✅ Recordatorio creado con ID ${id} para este chat.` }, { quoted: msg });
       return;
     }
 
-    // 2) Borrar reminder: /borrar reminder <id>
+    // 9) Borrar reminder: /borrar reminder <id>
     if (lowerText.startsWith('/borrar reminder ')) {
       const id = text.slice(17).trim();
-      if (!reminders[id]) {
-        await sock.sendMessage(from, { text: `❗ No existe recordatorio con ID ${id}` }, { quoted: msg });
+      if (!reminders[from] || !reminders[from][id]) {
+        await sock.sendMessage(from, { text: `❗ No existe recordatorio con ID ${id} en este chat.` }, { quoted: msg });
         return;
       }
-      if (reminders[id].creador !== sender && usuarios[sender]?.rol !== 'superadmin') {
+      if (reminders[from][id].creador !== sender && usuarios[sender]?.rol !== 'superadmin') {
         await sock.sendMessage(from, { text: '🚫 Solo el creador o superadmin puede borrar este recordatorio.' }, { quoted: msg });
         return;
       }
-      delete reminders[id];
+      delete reminders[from][id];
+      if (Object.keys(reminders[from]).length === 0) delete reminders[from];
       guardarArchivo(REMINDERS_FILE, reminders);
       await sock.sendMessage(from, { text: `✅ Recordatorio ${id} borrado.` }, { quoted: msg });
       return;
     }
 
-    // 3) Agregar evento a agenda: /agregar evento 2025-08-15 14:00 Nombre del evento
+    // 10) Agregar evento a agenda: /agregar evento <YYYY-MM-DD> <HH:MM> <nombre>
     if (lowerText.startsWith('/agregar evento ')) {
       const partes = text.slice(15).trim().split(' ');
       if (partes.length < 3) {
@@ -255,7 +250,7 @@ export async function handleMessage(sock, msg) {
       return;
     }
 
-    // 4) Mostrar agenda: /agenda
+    // 11) Mostrar agenda: /agenda
     if (lowerText === '/agenda') {
       const eventos = Object.entries(agenda)
         .map(([id, ev]) => `${id}: ${fechaFormateada(ev.fechaHora)} - ${ev.nombre}`)
@@ -264,7 +259,7 @@ export async function handleMessage(sock, msg) {
       return;
     }
 
-    // 5) Mostrar actividad: /actividad [usuario1 usuario2 ...]
+    // 12) Mostrar actividad: /actividad [usuario1 usuario2 ...]
     if (lowerText.startsWith('/actividad')) {
       const partes = text.trim().split(' ').slice(1);
       if (partes.length === 0) {
@@ -293,7 +288,7 @@ export async function handleMessage(sock, msg) {
       return;
     }
 
-    // 6) Juegos y dinámicas: /juego <nombre>
+    // 13) Juegos y dinámicas: /juego <nombre>
     if (lowerText.startsWith('/juego')) {
       const partes = text.trim().split(' ');
       if (partes.length < 2) {
@@ -340,3 +335,4 @@ export async function handleMessage(sock, msg) {
     console.error("Error manejando mensaje:", err);
   }
 }
+
