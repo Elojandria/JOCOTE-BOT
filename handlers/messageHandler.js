@@ -1,22 +1,30 @@
 // handlers/messageHandler.js
 import { askChatGPT } from '../chatgpt.js';
 
+const BOT_ID = process.env.BOT_ID;
+
 export async function handleMessage(sock, msg) {
-    try {
-        // Ignorar mensajes enviados por el bot para evitar bucles
-        if (msg.key.fromMe) return;
+  try {
+    if (msg.key.fromMe) return; // Ignorar mensajes propios
 
-        const from = msg.key.remoteJid;
-        const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
+    const from = msg.key.remoteJid;
+    const isGroup = from.endsWith('@g.us');
 
-        if (!text) return;
+    // Obtener texto y menciones
+    const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
+    const mentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
 
-        console.log(`Mensaje de ${from}: ${text}`);
+    if (!text) return;
 
-        const reply = await askChatGPT(text);
+    // Si es grupo, responde solo si se menciona al bot
+    if (isGroup && !mentions.includes(BOT_ID)) return;
 
-        await sock.sendMessage(from, { text: reply });
-    } catch (err) {
-        console.error("Error manejando mensaje:", err);
-    }
+    console.log(`Mensaje de ${from}: ${text}`);
+
+    const reply = await askChatGPT(text);
+
+    await sock.sendMessage(from, { text: reply });
+  } catch (err) {
+    console.error("Error manejando mensaje:", err);
+  }
 }
