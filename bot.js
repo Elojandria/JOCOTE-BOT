@@ -1,4 +1,4 @@
-import * as baileys from '@whiskeysockets/baileys';
+import baileys from '@whiskeysockets/baileys';
 
 const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion } = baileys;
 
