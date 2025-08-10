@@ -59,6 +59,7 @@ export async function handleMessage(sock, msg) {
 
     registrarActividad(sender);
 
+    // Registrar nuevo usuario con rol usuario
     if (!(sender in usuarios)) {
       usuarios[sender] = { nombre: msg.pushName || 'Usuario', rol: 'usuario' };
       guardarArchivo(USUARIOS_FILE, usuarios);
@@ -66,9 +67,8 @@ export async function handleMessage(sock, msg) {
 
     const lowerText = text.trim().toLowerCase();
 
-    // Comandos y funcionalidades
+    // COMANDOS
 
-    // 1) Mostrar lista de comandos: /comandos
     if (lowerText === '/comandos') {
       const comandos = `
 📂 Gestión de usuarios y roles
@@ -91,13 +91,15 @@ export async function handleMessage(sock, msg) {
 
 🎮 Juegos
 /juego adivina - Juego de adivinanza
+
+📜 Índice
+/comandos - Mostrar esta lista
       `;
       await sock.sendMessage(from, { text: comandos.trim() }, { quoted: msg });
       return;
     }
 
-    // 2) Cambiar nombre: /nombre <nuevoNombre>
-    if (lowerText.startsWith('/nombre ')) {
+    if (text.startsWith('/nombre ')) {
       const nuevoNombre = text.slice(8).trim();
       usuarios[sender].nombre = nuevoNombre;
       guardarArchivo(USUARIOS_FILE, usuarios);
@@ -105,8 +107,7 @@ export async function handleMessage(sock, msg) {
       return;
     }
 
-    // 3) Asignar rol (solo superadmin): /rol <jid> <rol>
-    if (lowerText.startsWith('/rol ')) {
+    if (text.startsWith('/rol ')) {
       if (usuarios[sender]?.rol !== 'superadmin') {
         await sock.sendMessage(from, { text: '🚫 Solo superadmin puede asignar roles.' }, { quoted: msg });
         return;
@@ -124,7 +125,6 @@ export async function handleMessage(sock, msg) {
       return;
     }
 
-    // 4) Resetear nombres (admin y superadmin): /resetnombres
     if (lowerText === '/resetnombres') {
       if (!['admin', 'superadmin'].includes(usuarios[sender]?.rol)) {
         await sock.sendMessage(from, { text: '🚫 Solo admin o superadmin pueden resetear nombres.' }, { quoted: msg });
@@ -138,7 +138,6 @@ export async function handleMessage(sock, msg) {
       return;
     }
 
-    // 5) Activar/desactivar bot en grupos (admin y superadmin): /activarbot y /desactivarbot
     if (lowerText === '/activarbot' || lowerText === '/desactivarbot') {
       if (!isGroup) {
         await sock.sendMessage(from, { text: '🚫 Este comando solo funciona en grupos.' }, { quoted: msg });
@@ -154,36 +153,37 @@ export async function handleMessage(sock, msg) {
       return;
     }
 
-    // 6) Privados: activar/desactivar bot en chat individual
     if (!isGroup) {
       if (!(from in privateChatStatus)) {
         privateChatStatus[from] = true;
         guardarArchivo(STATUS_FILE, privateChatStatus);
       }
+
       if (lowerText === '/desactivar') {
         privateChatStatus[from] = false;
         guardarArchivo(STATUS_FILE, privateChatStatus);
         await sock.sendMessage(from, { text: '✅ Bot desactivado para este chat.' }, { quoted: msg });
         return;
       }
+
       if (lowerText === '/activar') {
         privateChatStatus[from] = true;
         guardarArchivo(STATUS_FILE, privateChatStatus);
         await sock.sendMessage(from, { text: '✅ Bot activado para este chat.' }, { quoted: msg });
         return;
       }
+
       if (!privateChatStatus[from]) return;
     }
 
-    // 7) Si es grupo y bot está desactivado, no responder
     if (isGroup) {
       if (groupChatStatus[from] === false) return;
-      // Responder solo si contiene "JOCOTE-BOT"
-      const hasExactWord = /\bJOCOTE-BOT\b/i.test(text);
-      if (!hasExactWord) return;
+
+      // Solo responder si contiene la palabra exacta "JOCOTE-BOT"
+      if (!/\bJOCOTE-BOT\b/i.test(text)) return;
     }
 
-    // 8) Crear reminder: /crear reminder <YYYY-MM-DD> <HH:MM> <mensaje>
+    // CREAR REMINDER
     if (lowerText.startsWith('/crear reminder ')) {
       const partes = text.slice(16).trim().split(' ');
       if (partes.length < 3) {
@@ -198,15 +198,16 @@ export async function handleMessage(sock, msg) {
         await sock.sendMessage(from, { text: '❗ Fecha u hora inválida. Usa formato YYYY-MM-DD HH:MM' }, { quoted: msg });
         return;
       }
+
       if (!reminders[from]) reminders[from] = {};
       const id = Date.now().toString();
       reminders[from][id] = { fechaHora: fechaHoraStr, mensaje, creador: sender };
       guardarArchivo(REMINDERS_FILE, reminders);
-      await sock.sendMessage(from, { text: `✅ Recordatorio creado con ID ${id} para este chat.` }, { quoted: msg });
+      await sock.sendMessage(from, { text: `✅ Recordatorio creado con ID ${id}` }, { quoted: msg });
       return;
     }
 
-    // 9) Borrar reminder: /borrar reminder <id>
+    // BORRAR REMINDER
     if (lowerText.startsWith('/borrar reminder ')) {
       const id = text.slice(17).trim();
       if (!reminders[from] || !reminders[from][id]) {
@@ -218,13 +219,12 @@ export async function handleMessage(sock, msg) {
         return;
       }
       delete reminders[from][id];
-      if (Object.keys(reminders[from]).length === 0) delete reminders[from];
       guardarArchivo(REMINDERS_FILE, reminders);
       await sock.sendMessage(from, { text: `✅ Recordatorio ${id} borrado.` }, { quoted: msg });
       return;
     }
 
-    // 10) Agregar evento a agenda: /agregar evento <YYYY-MM-DD> <HH:MM> <nombre>
+    // AGREGAR EVENTO A AGENDA
     if (lowerText.startsWith('/agregar evento ')) {
       const partes = text.slice(15).trim().split(' ');
       if (partes.length < 3) {
@@ -250,7 +250,7 @@ export async function handleMessage(sock, msg) {
       return;
     }
 
-    // 11) Mostrar agenda: /agenda
+    // MOSTRAR AGENDA
     if (lowerText === '/agenda') {
       const eventos = Object.entries(agenda)
         .map(([id, ev]) => `${id}: ${fechaFormateada(ev.fechaHora)} - ${ev.nombre}`)
@@ -259,7 +259,7 @@ export async function handleMessage(sock, msg) {
       return;
     }
 
-    // 12) Mostrar actividad: /actividad [usuario1 usuario2 ...]
+    // MOSTRAR ACTIVIDAD
     if (lowerText.startsWith('/actividad')) {
       const partes = text.trim().split(' ').slice(1);
       if (partes.length === 0) {
@@ -269,6 +269,7 @@ export async function handleMessage(sock, msg) {
           texto += `${nombre} (${jid}): ${fecha ? new Date(fecha).toLocaleString() : 'Nunca'}\n`;
         }
         await sock.sendMessage(from, { text: texto }, { quoted: msg });
+        return;
       } else {
         let texto = 'Última actividad:\n';
         for (const usr of partes) {
@@ -284,11 +285,11 @@ export async function handleMessage(sock, msg) {
           }
         }
         await sock.sendMessage(from, { text: texto }, { quoted: msg });
+        return;
       }
-      return;
     }
 
-    // 13) Juegos y dinámicas: /juego <nombre>
+    // JUEGOS
     if (lowerText.startsWith('/juego')) {
       const partes = text.trim().split(' ');
       if (partes.length < 2) {
@@ -309,7 +310,7 @@ export async function handleMessage(sock, msg) {
       }
     }
 
-    // Responder intentos de adivinar número (solo si juego activo)
+    // RESPONDER INTENTOS DE ADIVINANZA
     if (usuarios[sender]?.juegoActivo?.tipo === 'adivina') {
       const guess = parseInt(text.trim());
       if (!isNaN(guess)) {
@@ -325,7 +326,7 @@ export async function handleMessage(sock, msg) {
       }
     }
 
-    // RESPUESTA POR DEFECTO (AskGPT)
+    // RESPUESTA POR DEFECTO CON CHATGPT
     console.log(`Mensaje de ${from}: ${text}`);
     const replyFromAI = await askChatGPT(text);
     const replyText = `Hola ${usuarios[sender].nombre}, ${replyFromAI}`;
@@ -335,4 +336,3 @@ export async function handleMessage(sock, msg) {
     console.error("Error manejando mensaje:", err);
   }
 }
-
